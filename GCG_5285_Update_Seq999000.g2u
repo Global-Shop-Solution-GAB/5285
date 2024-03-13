@@ -1,0 +1,58 @@
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'BN Oct 1, 2018
+'This project will update the Description of sequence (L) 999000 in Job_Operations to be 'R & D Labor'
+'Screen: Worder Schedule
+f.Intrinsic.Control.Try
+	v.Local.sError.Declare
+	v.Local.sSQL.Declare
+	v.Local.sJobSuffix.Declare
+	v.Local.shold.Declare
+	v.Local.sJob.Declare
+	v.Local.sSuffix.Declare	
+	
+	'Post OK hook 16800 and Pre Exit hook 16780
+	f.Intrinsic.Control.If(v.Caller.Hook,=,16780,or,v.Caller.Hook,=,16800)
+		v.Local.sJobSuffix.Set(v.Passed.000113)
+		f.Intrinsic.String.Split(v.Local.sJobSuffix," ",v.Local.sJobSuffix)
+		f.Intrinsic.Control.If(v.Local.sJobSuffix.UBound,>,3)
+			v.Local.shold.Set(v.Local.sJobSuffix(3))
+			f.Intrinsic.String.Split(v.Local.shold,"-",v.Local.sJob)
+			f.Intrinsic.Control.If(v.Local.sJob.UBound,>,0)
+				v.Local.sSuffix.Set(v.Local.sJob(1))
+			f.Intrinsic.Control.EndIf
+		f.Intrinsic.Control.EndIf
+		
+		f.Intrinsic.UI.InvokeWaitDialog("Update Job_Operations, set Description of seq 999000 to 'R & D LABOR'. Please wait...")
+		f.ODBC.Connection!conx.OpenCompanyConnection(15000)
+		f.Intrinsic.String.Build("Update job_operations set Description = 'R & D LABOR' where Job = '{0}' and Suffix = '{1}' and Seq = '999000' And LMO = 'L';",v.Local.sJob(0).Trim,v.Local.sSuffix,v.Local.sSQL)
+		f.ODBC.Connection!conx.Execute(v.Local.sSQL)
+		f.Intrinsic.UI.CloseWaitDialog
+		f.Intrinsic.Control.CallSub("Unload")	
+	f.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}GAB Version: {5}}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub("Unload")	
+F.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.UnLoad.Start
+f.Intrinsic.Control.Try
+	v.Local.sError.Declare
+
+	F.Intrinsic.Control.If(V.ODBC.conx.State,=,1)
+		F.ODBC.Connection!conx.close
+	F.Intrinsic.Control.EndIf
+	
+	f.Intrinsic.Control.End
+
+F.Intrinsic.Control.Catch
+	Function.Intrinsic.String.Build("Subroutine Error {0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}",V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End	
+F.Intrinsic.Control.EndTry
+Program.Sub.UnLoad.End
