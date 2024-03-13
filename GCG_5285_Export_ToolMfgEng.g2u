@@ -1,0 +1,117 @@
+﻿Program.Sub.ScreenSU.Start
+Gui.Form..Create
+Gui.Form..Caption("Tool Manufacturing Engineering Export")
+Gui.Form..Size(5265,2430)
+Gui.Form..MinX(0)
+Gui.Form..MinY(0)
+Gui.Form..Position(0,0)
+Gui.Form..BackColor(-2147483633)
+Gui.Form..MousePointer(0)
+Gui.Form.dtp1.Create(DatePicker)
+Gui.Form.dtp1.Size(1935,285)
+Gui.Form.dtp1.Position(240,450)
+Gui.Form.dtp2.Create(DatePicker)
+Gui.Form.dtp2.Size(1935,285)
+Gui.Form.dtp2.Position(2700,450)
+Gui.Form.lbl1.Create(Label,"Select Date Range:",True,1935,255,0,285,180,True,0,"Arial",8,-2147483633,0)
+Gui.Form.cmd1.Create(Button)
+Gui.Form.cmd1.Size(1515,405)
+Gui.Form.cmd1.Position(2790,1020)
+Gui.Form.cmd1.Caption("Export")
+Gui.Form.cmd1.Event(Click,cmd1_Click)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+GUI.Form..Show
+
+
+Program.Sub.Main.End
+
+Program.Sub.cmd1_Click.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+F.Intrinsic.UI.InvokeWaitDialog("Builing Records","Please Wait")
+
+v.Local.ssql.Declare
+v.Local.sfilepath.Declare
+v.Local.sRet.Declare
+v.Local.icount.Declare
+'v.Local.sstartdate.Declare
+'v.Local.senddate.Declare
+
+f.ODBC.Connection!con.OpenCompanyConnection(15000)
+
+F.Intrinsic.String.Build("SELECT vjd.job, vjd.suffix, vjd.JOB+'-'+vjd.SUFFIX as jobsuffix, vjd.seq, vjd.CHARGE_DATE, vjh.part, vjh.DESCRIPTION, vjd.EMPLOYEE, vjd.HOURS_WORKED, vjd.AMOUNT_LABOR, vjd.AMT_OVERHEAD FROM  job_header vjh LEFT OUTER JOIN v_job_detail vjd ON vjd.JOB=vjh.JOB AND vjd.SUFFIX=vjh.SUFFIX WHERE  vjd.CHARGE_DATE between '{0}' and '{1}' AND vjd.EDITED_WO_DTL<>'R' AND vjd.SEQ in ('996500','999000') ORDER BY vjd.job, vjd.suffix, vjd.charge_date, vjd.SEQ",v.Screen.Form!dtp1.Value.PervasiveDate,v.Screen.Form!dtp2.Value.PervasiveDate,v.Local.ssql)
+F.Data.DataTable.CreateFromSQL("dtJobRecs","con" ,v.Local.ssql)
+'F.Data.DataTable.AddColumn("dtJobRecs","TotMatOS","Long")
+
+'f.Intrinsic.Debug.InvokeDebugger
+'f.Intrinsic.Debug.Stop
+
+f.Data.DataView.Create("dtJobRecs","dvJobRecs")
+F.Data.DataView.ToDataTableDistinct("dtJobRecs","dvJobRecs","dtJobs","job*!*suffix",true)
+
+F.Data.DataTable.Create(dtMatOS,True)
+F.Data.DataTable.AddColumn("dtMatOS", "jobsuffix", "String")
+F.Data.DataTable.AddColumn("dtMatOS", "TotMatOS", "Long")
+
+F.Intrinsic.Control.For(v.Local.iCount, 0, v.DataTable.dtJobs.RowCount--, 1)
+	F.Intrinsic.String.Build("Select job+'-'+suffix as jobsuffix, sum(dollars_actual) from job_operations where job = '{0}' and suffix = '{1}' and LMO in ('M','O') group by jobsuffix",Variable.DataTable.dtJobs(v.Local.icount).Job!fieldval,Variable.DataTable.dtJobs(v.Local.icount).Suffix!fieldval,v.Local.ssql)
+	F.ODBC.Connection!con.ExecuteAndReturn(v.Local.ssql,v.Local.sRet)
+	f.Intrinsic.Control.If(v.Ambient.executeandreturnEOF,=,False)
+		F.Intrinsic.String.Split(V.Local.sRet,"*!*",V.Local.sRet)
+		F.Data.Datatable.AddRow("dtMatOS","jobsuffix",v.Local.sRet(0),"TotMatOS",v.Local.sRet(1))
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(v.Local.iCount)
+
+'F.Intrinsic.String.Build("Select job+'-'+suffix as jobsuffix, sum(dollars_actual) as TotMatOS from job_operations where job+suffix in (select job+suffix from v_job_detail where CHARGE_DATE between '{0}' and '{1}' AND EDITED_WO_DTL<>'R' AND SEQ in ('996500','999000')) and LMO in ('M','O')group by jobsuffix;",v.Screen.Form!dtp1.Value.PervasiveDate,v.Screen.Form!dtp2.Value.PervasiveDate,v.Local.ssql)
+'F.Data.DataTable.CreateFromSQL("dtMatOS","con",v.Local.ssql)
+
+F.ODBC.Connection!con.Close
+
+F.Data.DataTable.Merge(dtMatOS,dtJobRecs,true,1)
+
+F.Intrinsic.UI.CloseWaitDialog
+'select save location
+F.Intrinsic.UI.ShowSaveFileDialog("ToolMfgEng.csv","*.csv","","Select Location To Save Export",V.Local.sFilePath)
+F.Intrinsic.Control.If(V.Local.sFilePath,=,"***CANCEL***")
+	Gui.F_Manage.cmdExport.Enabled(True)
+		F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.EndIf
+
+'Add .csv extension is needed
+F.Intrinsic.String.Right(V.Local.sFilePath,4,V.Local.sRet)
+F.Intrinsic.Control.If(V.Local.sRet,!=,".csv")
+	F.Intrinsic.String.Concat(V.Local.sFilePath,".csv",V.Local.sFilePath)
+F.Intrinsic.Control.EndIf
+
+Function.Data.DataTable.SaveToCSV(dtJobRecs,V.Local.sfilepath,True)
+
+F.Intrinsic.UI.Msgbox("Finished")
+
+F.Intrinsic.Control.CallSub(Form_Unload)
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("GCG_5285_Export_ToolMfgEng.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Form_UnLoad)
+Function.Intrinsic.Control.EndIf
+Program.Sub.cmd1_Click.End
+
+Program.Sub.Form_UnLoad.Start
+	F.Intrinsic.Control.End 
+Program.Sub.Form_UnLoad.End
+
+Program.Sub.Comments.Start
+${$0$}$$}$SUPERVSR$}$10/23/2020 4:00:52 PM$}$False
+${$5$}$2.0.0.0$}$2
+${$6$}$lfrey$}$20201031101528259$}$/MtXutbLn8OdE0bzCqZUp6fMoyvCUmyFN6pH1P18SYSfxOgAqvkNwUWY4DdhtblTUclNND5/DuY=
+Program.Sub.Comments.End
